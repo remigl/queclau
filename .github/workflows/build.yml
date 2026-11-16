@@ -1,11 +1,11 @@
 name: Build
 
-# Compile l'APK à chaque push sur main.
-# Un tag « v* » (ex. v1.0.0) publie en plus une release GitHub avec l'APK.
+# Compile les APK à chaque push sur main.
+# Si la version de pubspec.yaml (ex. 1.0.0) n'a pas encore de release GitHub,
+# la release « v1.0.0 » est créée avec les APK.
 on:
   push:
     branches: [main]
-    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
@@ -66,17 +66,24 @@ jobs:
           ls -la *.apk | tee -a ci.log
           unzip -l reveil.apk | grep -E "\.gguf|\.so$" | tee -a ci.log
 
+      # Publie une release quand la version de pubspec.yaml n'en a pas encore.
       - name: Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: github.ref == 'refs/heads/main'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          set -o pipefail
-          full="reveil-${GITHUB_REF_NAME}.apk"
-          light="reveil-${GITHUB_REF_NAME}-sans-modele.apk"
+          set -euo pipefail
+          tag="v$(sed -n 's/^version: *\([^+ ]*\).*/\1/p' pubspec.yaml)"
+          if gh release view "$tag" > /dev/null 2>&1; then
+            echo "La release $tag existe déjà."
+            exit 0
+          fi
+          full="reveil-${tag}.apk"
+          light="reveil-${tag}-sans-modele.apk"
           mv reveil.apk "$full"
           mv reveil-sans-modele.apk "$light"
-          gh release create "$GITHUB_REF_NAME" "$full" "$light" \
-            --title "Réveil ${GITHUB_REF_NAME}" \
+          gh release create "$tag" "$full" "$light" \
+            --target "$GITHUB_SHA" \
+            --title "Réveil ${tag}" \
             --notes-file RELEASE_NOTES.md

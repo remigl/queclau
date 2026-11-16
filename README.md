@@ -211,12 +211,10 @@ précompilées : il faut une connexion à ce moment-là.
 ### Releases
 
 Chaque push sur `main` compile l'application sur GitHub Actions
-(`.github/workflows/build.yml`). Pousser un tag `v*` publie une release
-GitHub avec deux APK arm64 : avec et sans modèle.
-
-```bash
-git tag v1.0.1 && git push origin v1.0.1
-```
+(`.github/workflows/build.yml`). Si la version de `pubspec.yaml` n'a pas
+encore de release GitHub, elle est publiée avec deux APK arm64 : avec et sans
+modèle. Pour sortir une nouvelle version : augmenter `version:` dans
+`pubspec.yaml`, mettre à jour `RELEASE_NOTES.md`, pousser sur `main`.
 
 Le dépôt ne contient pas les fichiers que Flutter génère lui-même
 (`gradlew`, `gradle-wrapper.jar`, `local.properties`) : ils sont créés au
