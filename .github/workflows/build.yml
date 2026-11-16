@@ -1,0 +1,83 @@
+name: Build
+
+# Compile l'APK à chaque push sur main.
+# Un tag « v* » (ex. v1.0.0) publie en plus une release GitHub avec l'APK.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Dépendances
+        shell: bash
+        run: |
+          set -o pipefail
+          { flutter --version && flutter pub get; } 2>&1 | tee -a ci.log
+
+      - name: Analyse
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter analyze --no-fatal-infos --no-fatal-warnings 2>&1 | tee -a ci.log
+
+      - name: Tests
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter test 2>&1 | tee -a ci.log
+
+      - name: Build APK
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter build apk --release 2>&1 | tee -a ci.log
+          ls -la build/app/outputs/flutter-apk/ | tee -a ci.log
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -o pipefail
+          apk="reveil-${GITHUB_REF_NAME}.apk"
+          cp build/app/outputs/flutter-apk/app-release.apk "$apk"
+          gh release create "$GITHUB_REF_NAME" "$apk" \
+            --title "Réveil ${GITHUB_REF_NAME}" \
+            --notes-file RELEASE_NOTES.md 2>&1 | tee -a ci.log
+
+      # Temporaire : journal du build poussé sur la branche ci-logs.
+      - name: Journal
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/logs
+          tail -n 600 ci.log > /tmp/logs/ci.log 2>/dev/null || true
+          echo "${{ job.status }} ${GITHUB_SHA} ${GITHUB_REF_NAME} run ${GITHUB_RUN_ID}" > /tmp/logs/status.txt
+          cd /tmp/logs
+          git init -q -b ci-logs
+          git add .
+          git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -qm "Journal ${GITHUB_SHA}"
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}" ci-logs
