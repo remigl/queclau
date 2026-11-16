@@ -1,0 +1,201 @@
+Flutter 3.50.0 • channel stable • https://github.com/flutter/flutter.git
+Framework • revision ab2912035e (7 days ago) • 2026-11-09 08:50:21 -0800
+Engine • hash bf601093ad255aaf5c6d0fc5c4f9acfa60943b2a (revision 371f77202a) (7 days ago) • 2026-11-09 15:57:36.000Z
+Tools • Dart 3.14.0 • DevTools 2.61.0
+Resolving dependencies...
+Downloading packages...
++ archive 4.7.1
++ async 2.13.1
++ boolean_selector 2.1.2
++ characters 1.4.1
++ clock 1.1.3
++ code_assets 2.2.0
++ collection 1.19.1
++ crypto 3.0.8
++ cupertino_ui 1.1.7
++ dinja 1.3.2
++ fake_async 1.3.3
++ ffi 2.2.0
++ flutter 0.0.0 from sdk flutter
++ flutter_localizations 0.0.0 from sdk flutter
++ flutter_test 0.0.0 from sdk flutter
++ flutter_web_plugins 0.0.0 from sdk flutter
++ hooks 2.2.0
++ http 1.6.0
++ http_parser 4.1.2
++ image 4.13.1
++ intl 0.20.3
++ json_annotation 4.12.0
++ leak_tracker 11.0.2
++ leak_tracker_flutter_testing 3.0.10
++ leak_tracker_testing 3.0.2
++ listen 1.0.1
++ llamadart 0.19.11
++ logging 1.3.0
++ matcher 0.12.20
++ material_color_utilities 0.13.0 (0.13.1 available)
++ material_ui 1.11.1
++ meta 1.19.0
++ path 1.9.1
++ plugin_platform_interface 2.1.8
++ posix 6.5.4
++ pub_semver 2.2.1
++ record_use 1.1.1
++ sky_engine 0.0.0 from sdk flutter
++ source_span 1.10.2
++ speech_to_text 7.5.0
++ speech_to_text_platform_interface 2.5.0
++ speech_to_text_windows 1.0.1
++ stack_trace 1.12.2
++ stream_channel 2.1.4
++ string_scanner 1.4.1
++ term_glyph 1.2.2
++ test_api 0.7.14 (0.7.15 available)
++ typed_data 1.4.0
++ vector_math 2.4.4
++ vm_service 15.4.0
++ web 1.1.2
++ yaml 3.1.4
+Changed 52 dependencies!
+2 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+Analyzing queclau...                                            
+No issues found! (ran in 6.4s)
+
+::group::✅ Passing tests
+✅ formats chiffrés
+✅ nombres en toutes lettres
+✅ jour explicite
+✅ phrase complète
+✅ texte incompréhensible
+✅ réponses du modèle local
+✅ règle de date
+::endgroup::
+
+🎉 7 tests passed.
+Running Gradle task 'assembleRelease'...                        
+Loading package information...                                                  
+Loading local repository...                                                     
+[                                       ] 3% Loading local repository...        
+[                                       ] 3% Fetch remote repository...         
+[=                                      ] 3% Fetch remote repository...         
+[=                                      ] 4% Fetch remote repository...         
+[=                                      ] 5% Fetch remote repository...         
+[==                                     ] 5% Fetch remote repository...         
+[==                                     ] 6% Fetch remote repository...         
+[==                                     ] 7% Fetch remote repository...         
+[==                                     ] 7% Computing updates...               
+[===                                    ] 8% Computing updates...               
+[===                                    ] 10% Computing updates...              
+[===                                    ] 10% Installing NDK (Side by side) 28.2
+[===                                    ] 10% Downloading android-ndk-r28c-linux
+[====                                   ] 10% Downloading android-ndk-r28c-linux
+[====                                   ] 11% Downloading android-ndk-r28c-linux
+[====                                   ] 12% Downloading android-ndk-r28c-linux
+[=====                                  ] 13% Downloading android-ndk-r28c-linux
+[=====                                  ] 14% Downloading android-ndk-r28c-linux
+[=====                                  ] 15% Downloading android-ndk-r28c-linux
+[======                                 ] 15% Downloading android-ndk-r28c-linux
+[======                                 ] 16% Downloading android-ndk-r28c-linux
+[======                                 ] 17% Downloading android-ndk-r28c-linux
+[=======                                ] 18% Downloading android-ndk-r28c-linux
+[=======                                ] 19% Downloading android-ndk-r28c-linux
+[=======                                ] 20% Downloading android-ndk-r28c-linux
+[========                               ] 20% Downloading android-ndk-r28c-linux
+[========                               ] 21% Downloading android-ndk-r28c-linux
+[========                               ] 22% Downloading android-ndk-r28c-linux
+[=========                              ] 23% Downloading android-ndk-r28c-linux
+[=========                              ] 24% Downloading android-ndk-r28c-linux
+[=========                              ] 25% Downloading android-ndk-r28c-linux
+[==========                             ] 25% Downloading android-ndk-r28c-linux
+[==========                             ] 26% Downloading android-ndk-r28c-linux
+[==========                             ] 27% Downloading android-ndk-r28c-linux
+[===========                            ] 28% Downloading android-ndk-r28c-linux
+[===========                            ] 29% Downloading android-ndk-r28c-linux
+[===========                            ] 30% Downloading android-ndk-r28c-linux
+[============                           ] 30% Downloading android-ndk-r28c-linux
+[============                           ] 31% Downloading android-ndk-r28c-linux
+[============                           ] 32% Downloading android-ndk-r28c-linux
+[============                           ] 33% Downloading android-ndk-r28c-linux
+[============                           ] 33% Unzipping...                      
+[============                           ] 33% Unzipping... android-ndk-r28c/    
+[============                           ] 33% Unzipping... android-ndk-r28c/READ
+[=============                          ] 33% Unzipping... android-ndk-r28c/READ
+[=============                          ] 33% Unzipping... android-ndk-r28c/meta
+[=============                          ] 33% Unzipping... android-ndk-r28c/shad
+[=============                          ] 33% Unzipping... android-ndk-r28c/ndk-
+[=============                          ] 33% Unzipping... android-ndk-r28c/wrap
+[=============                          ] 33% Unzipping... android-ndk-r28c/ndk-
+[=============                          ] 33% Unzipping... android-ndk-r28c/tool
+[=============                          ] 34% Unzipping... android-ndk-r28c/tool
+[=============                          ] 35% Unzipping... android-ndk-r28c/tool
+[==============                         ] 35% Unzipping... android-ndk-r28c/tool
+[==============                         ] 36% Unzipping... android-ndk-r28c/tool
+[==============                         ] 37% Unzipping... android-ndk-r28c/tool
+[===============                        ] 38% Unzipping... android-ndk-r28c/tool
+[===============                        ] 39% Unzipping... android-ndk-r28c/tool
+[===============                        ] 40% Unzipping... android-ndk-r28c/tool
+[================                       ] 40% Unzipping... android-ndk-r28c/tool
+[================                       ] 41% Unzipping... android-ndk-r28c/tool
+[================                       ] 42% Unzipping... android-ndk-r28c/tool
+[=================                      ] 43% Unzipping... android-ndk-r28c/tool
+[=================                      ] 44% Unzipping... android-ndk-r28c/tool
+[=================                      ] 45% Unzipping... android-ndk-r28c/tool
+[==================                     ] 45% Unzipping... android-ndk-r28c/tool
+[==================                     ] 46% Unzipping... android-ndk-r28c/tool
+[==================                     ] 47% Unzipping... android-ndk-r28c/tool
+[===================                    ] 48% Unzipping... android-ndk-r28c/tool
+[===================                    ] 49% Unzipping... android-ndk-r28c/tool
+[===================                    ] 50% Unzipping... android-ndk-r28c/tool
+[====================                   ] 50% Unzipping... android-ndk-r28c/tool
+[====================                   ] 51% Unzipping... android-ndk-r28c/tool
+[====================                   ] 52% Unzipping... android-ndk-r28c/tool
+[=====================                  ] 53% Unzipping... android-ndk-r28c/tool
+[=====================                  ] 54% Unzipping... android-ndk-r28c/tool
+[=====================                  ] 54% Unzipping... android-ndk-r28c/buil
+[=====================                  ] 54% Unzipping... android-ndk-r28c/sour
+[=====================                  ] 54% Unzipping... android-ndk-r28c/NOTI
+[=====================                  ] 54% Unzipping... android-ndk-r28c/ndk-
+[=====================                  ] 54% Unzipping... android-ndk-r28c/NOTI
+[=====================                  ] 54% Unzipping... android-ndk-r28c/pyth
+[=====================                  ] 54% Unzipping... android-ndk-r28c/preb
+[=====================                  ] 54% Unzipping... android-ndk-r28c/ndk-
+[=====================                  ] 54% Unzipping... android-ndk-r28c/sour
+[=====================                  ] 54% Unzipping... android-ndk-r28c/simp
+[=====================                  ] 55% Unzipping... android-ndk-r28c/simp
+[=====================                  ] 55% Unzipping... android-ndk-r28c/CHAN
+[=======================================] 100% Unzipping... android-ndk-r28c/CHA
+
+Font asset "MaterialIcons-Regular.otf" was tree-shaken, reducing it from 1645184 to 1720 bytes (99.9% reduction). Tree-shaking can be disabled by providing the --no-tree-shake-icons flag when building your app.
+Caught exception: Already watching path: /home/runner/work/queclau/queclau/android
+Running Gradle task 'assembleRelease'...                          166.7s
+✓ Built build/app/outputs/flutter-apk/app-release.apk (68.6MB)
+Téléchargement du modèle…
+  % Total    % Received % Xferd  Average Speed  Time    Time    Time   Current
+                                 Dload  Upload  Total   Spent   Left   Speed
+  0      0   0      0   0      0      0      0                              0100   1118 100   1118   0      0   8777      0                              0100   1118 100   1118   0      0   8774      0                              0
+  0      0   0      0   0      0      0      0                              0  9 468.6M   9 45.85M   0      0 39.50M      0   00:11   00:01   00:10 44.38M 29 468.6M  29 140.3M   0      0 64.66M      0   00:07   00:02   00:05 68.72M 43 468.6M  43 205.6M   0      0 64.82M      0   00:07   00:03   00:04 67.55M 47 468.6M  47 221.7M   0      0 53.00M      0   00:08   00:04   00:04 54.67M 50 468.6M  50 237.8M   0      0 45.85M      0   00:10   00:05   00:05 47.01M 67 468.6M  67 314.7M   0      0 50.82M      0   00:09   00:06   00:03 53.44M 70 468.6M  70 329.0M   0      0 45.57M      0   00:10   00:07   00:03 37.37M 73 468.6M  73 346.3M   0      0 42.14M      0   00:11   00:08   00:03 27.88M 77 468.6M  77 362.1M   0      0 39.28M      0   00:11   00:09   00:02 27.89M 79 468.6M  79 373.8M   0      0 36.50M      0   00:12   00:10   00:02 26.92M 83 468.6M  83 391.0M   0      0 34.78M      0   00:13   00:11   00:02 15.11M 87 468.6M  87 407.9M   0      0 33.31M      0   00:14   00:12   00:02 15.69M 90 468.6M  90 423.3M   0      0 31.95M      0   00:14   00:13   00:01 15.31M 93 468.6M  93 436.1M   0      0 30.57M      0   00:15   00:14   00:01 14.66M100 468.6M 100 468.6M   0      0 32.52M      0   00:14   00:14         14.66M100 468.6M 100 468.6M   0      0 32.52M      0   00:14   00:14         14.66M100 468.6M 100 468.6M   0      0 32.52M      0   00:14   00:14         14.66M
+-rw-r--r-- 1 runner runner 491400032 Nov 16 21:30 /home/runner/work/queclau/queclau/android/app/src/main/assets/models/qwen2.5-0.5b-instruct-q4_k_m.gguf
+Running Gradle task 'assembleRelease'...                        
+Caught exception: Already watching path: /opt/hostedtoolcache/flutter/stable-3.50.0-x64/flutter/packages/flutter_tools/gradle
+Running Gradle task 'assembleRelease'...                           14.5s
+✓ Built build/app/outputs/flutter-apk/app-release.apk (560.0MB)
+-rw-r--r-- 1 runner runner  68648845 Nov 16 21:30 reveil-sans-modele.apk
+-rw-r--r-- 1 runner runner 560049050 Nov 16 21:31 reveil.apk
+  7144408  1981-01-01 01:01   lib/arm64-v8a/libapp.so
+ 11346352  1981-01-01 01:01   lib/arm64-v8a/libflutter.so
+  1117088  1981-01-01 01:01   lib/arm64-v8a/libggml-base.so
+  1594008  1981-01-01 01:01   lib/arm64-v8a/libggml-cpu-android_armv8.0_1.so
+  1620440  1981-01-01 01:01   lib/arm64-v8a/libggml-cpu-android_armv8.2_1.so
+  1621032  1981-01-01 01:01   lib/arm64-v8a/libggml-cpu-android_armv8.2_2.so
+  1634344  1981-01-01 01:01   lib/arm64-v8a/libggml-cpu-android_armv8.6_1.so
+  1648392  1981-01-01 01:01   lib/arm64-v8a/libggml-cpu-android_armv9.0_1.so
+  1648392  1981-01-01 01:01   lib/arm64-v8a/libggml-cpu-android_armv9.2_1.so
+  1648392  1981-01-01 01:01   lib/arm64-v8a/libggml-cpu-android_armv9.2_2.so
+ 26437088  1981-01-01 01:01   lib/arm64-v8a/libggml-vulkan.so
+   119456  1981-01-01 01:01   lib/arm64-v8a/libggml.so
+  4241504  1981-01-01 01:01   lib/arm64-v8a/libllama-common.so
+  4277776  1981-01-01 01:01   lib/arm64-v8a/libllama.so
+   179632  1981-01-01 01:01   lib/arm64-v8a/libllamadart.so
+  1742256  1981-01-01 01:01   lib/arm64-v8a/libmtmd.so
+491400032  1981-01-01 01:01   assets/models/qwen2.5-0.5b-instruct-q4_k_m.gguf
