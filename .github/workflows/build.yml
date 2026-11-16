@@ -79,20 +79,4 @@ jobs:
           mv reveil-sans-modele.apk "$light"
           gh release create "$GITHUB_REF_NAME" "$full" "$light" \
             --title "Réveil ${GITHUB_REF_NAME}" \
-            --notes-file RELEASE_NOTES.md 2>&1 | tee -a ci.log
-
-      # Temporaire : journal du build poussé sur la branche ci-logs.
-      - name: Journal
-        if: always()
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          mkdir -p /tmp/logs
-          tail -n 600 ci.log > /tmp/logs/ci.log 2>/dev/null || true
-          echo "${{ job.status }} ${GITHUB_SHA} ${GITHUB_REF_NAME} run ${GITHUB_RUN_ID}" > /tmp/logs/status.txt
-          cd /tmp/logs
-          git init -q -b ci-logs
-          git add .
-          git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -qm "Journal ${GITHUB_SHA}"
-          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}" ci-logs
+            --notes-file RELEASE_NOTES.md

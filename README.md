@@ -48,7 +48,8 @@ lib/
   models/alarm.dart            Alarm, ParsedAlarm, règle « heure déjà passée »
   screens/home_screen.dart     L'unique écran
   services/
-    nlp_service.dart           Parser local déterministe (+ point d'extension)
+    nlp_service.dart           Parser local déterministe (prioritaire)
+    llm_alarm_parser.dart      Modèle de langage local (secours)
     speech_service.dart        Reconnaissance vocale Android
     alarm_service.dart         Pont MethodChannel vers le Kotlin
 
@@ -60,10 +61,24 @@ android/app/src/main/
     AlarmReceiver.kt           AlarmReceiver (déclenchement) + BootReceiver
     AlarmRingService.kt        Service au premier plan : son, vibration, notification
     AlarmActivity.kt           Écran de réveil plein écran, bouton « Arrêter »
+    ModelFiles.kt              Copie du modèle hors de l'APK au premier usage
   res/raw/reveil.wav           Son du réveil (embarqué)
+  assets/models/               Modèle GGUF (téléchargé par tool/fetch_model.sh)
+
+tool/fetch_model.sh            Télécharge le modèle de langage
+.github/workflows/build.yml    Build des APK, release sur tag
 
 test/nlp_service_test.dart     Tests du parser et de la règle de date
 ```
+
+### Quel réveil est réglé, exactement
+
+L'application programme **son propre réveil** auprès du système Android. Elle
+ne crée pas d'alarme dans l'application Horloge du téléphone : le réveil
+n'apparaît donc pas dans la liste d'Horloge, et c'est Réveil qui sonne, avec
+son propre son et son propre écran « Arrêter ». Le système le traite en
+revanche comme un vrai réveil : icône de réveil dans la barre d'état,
+prochaine alarme affichée sur l'écran de verrouillage.
 
 ### Pourquoi du Kotlin natif
 
@@ -126,39 +141,82 @@ ligne si le pack de langue français est installé sur le téléphone
 les modèles) ; sinon ce service peut passer par le réseau. La compréhension
 du texte, elle, est toujours locale.
 
-### Ajouter plus tard un petit modèle local
+### Modèle de langage local (secours)
 
-`nlp_service.dart` définit l'interface `AlarmParser`. `NlpService` interroge
-ses parsers dans l'ordre et garde le premier résultat. Pour brancher un petit
-modèle (par exemple un GGUF via llama.cpp) en secours, il suffit d'écrire une
-classe qui implémente `AlarmParser` et de l'ajouter après le parser
-déterministe :
+Le parser à règles (`RuleBasedAlarmParser`) est toujours interrogé en premier :
+il est instantané et prévisible. S'il ne comprend pas la phrase, un petit
+modèle de langage prend le relais (`LlmAlarmParser`) :
+
+- **Modèle** : Qwen2.5-0.5B-Instruct (Alibaba, licence Apache 2.0), quantifié
+  Q4_K_M, au format GGUF, 491 Mo.
+- **Moteur** : llama.cpp, via le package `llamadart` (bibliothèques natives
+  précompilées, exécution sur le processeur).
+- **Hors ligne** : le fichier du modèle est embarqué dans l'APK
+  (`assets/models/`). Rien n'est téléchargé par l'application.
+- **Sortie contrainte** : une grammaire GBNF oblige le modèle à répondre
+  « demain 07:15 », « aujourdhui 20:50 », « inconnu 06:00 » ou « aucune ».
+  Il ne peut pas produire autre chose.
+- **Garde-fou** : un modèle de cette taille peut se tromper d'heure. L'heure
+  qu'il propose est affichée avec la mention « Heure déduite par le modèle
+  local : vérifiez-la avant de programmer », et rien n'est programmé sans
+  appui sur « Programmer le réveil ».
+
+Coût à connaître :
+
+- l'APK avec modèle pèse environ 560 Mo, contre environ 69 Mo sans ;
+- à la première utilisation du modèle, son fichier est copié hors de l'APK
+  (llama.cpp a besoin d'un vrai fichier) : 491 Mo de stockage en plus, et
+  plusieurs secondes d'attente cette fois-là ;
+- le modèle occupe plusieurs centaines de Mo de mémoire pendant qu'il sert ;
+  il est déchargé dès que l'application passe en arrière-plan ;
+- les heures relatives (« dans vingt minutes ») ne sont pas gérées.
+
+Le modèle est optionnel à la compilation : sans fichier `.gguf` dans
+`android/app/src/main/assets/models/`, l'application se compile et fonctionne
+avec le seul parser à règles.
+
+Pour brancher un autre parser, il suffit d'étendre `AlarmParser`
+(`nlp_service.dart`) et de l'ajouter à la liste, dans l'ordre de priorité :
 
 ```dart
-NlpService(parsers: [RuleBasedAlarmParser(), MonParserLlmLocal()]);
+NlpService(parsers: [RuleBasedAlarmParser(), LlmAlarmParser()]);
 ```
-
-Pour le MVP, aucun modèle n'est embarqué : le parser à règles couvre les
-formulations d'heure courantes et ne pèse rien.
 
 ## Dépendances
 
+- `material_ui` : composants Material 3 (le sélecteur d'heure, en français).
 - `speech_to_text` : reconnaissance vocale Android.
-- `flutter_localizations` (fourni par le SDK) : sélecteur d'heure en français.
+- `llamadart` : llama.cpp, pour le modèle de langage local.
 
-C'est tout. Pas de `flutter_local_notifications` ni de `timezone` : la
-notification et le fuseau sont gérés directement en Kotlin.
+Pas de `flutter_local_notifications` ni de `timezone` : la notification et le
+fuseau sont gérés directement en Kotlin.
 
 ## Compiler
 
-Prérequis : Flutter stable récent (3.29 ou plus), Android SDK, JDK 17.
+Prérequis : Flutter 3.50 ou plus, Android SDK, JDK 17.
 
 ```bash
+tool/fetch_model.sh          # facultatif : télécharge le modèle (491 Mo)
 flutter pub get
 flutter build apk --release
 ```
 
 L'APK est produit dans `build/app/outputs/flutter-apk/app-release.apk`.
+Ajouter `--target-platform android-arm64` pour un APK plus léger, limité aux
+téléphones 64 bits (tous les téléphones récents).
+
+Au premier build, `llamadart` télécharge ses bibliothèques natives
+précompilées : il faut une connexion à ce moment-là.
+
+### Releases
+
+Chaque push sur `main` compile l'application sur GitHub Actions
+(`.github/workflows/build.yml`). Pousser un tag `v*` publie une release
+GitHub avec deux APK arm64 : avec et sans modèle.
+
+```bash
+git tag v1.0.1 && git push origin v1.0.1
+```
 
 Le dépôt ne contient pas les fichiers que Flutter génère lui-même
 (`gradlew`, `gradle-wrapper.jar`, `local.properties`) : ils sont créés au
@@ -217,6 +275,10 @@ Régler à chaque fois un réveil 2 ou 3 minutes plus tard.
 - [ ] Choisir « Demain », programmer : « ✓ Réveil programmé / Demain à … ».
 - [ ] Dire « demain 7h45 » puis « aujourd'hui » + une heure proche : le jour est présélectionné.
 - [ ] Dire « bonjour » : message « Je n'ai pas compris l'heure ».
+- [ ] Version avec modèle : dire « je dois me lever pour six heures » (non
+      couvert par les règles) : « Analyse en cours… », puis 06:00 avec la
+      mention « Heure déduite par le modèle local ». La première fois, compter
+      plusieurs secondes.
 - [ ] Toucher l'heure : le sélecteur manuel s'ouvre.
 - [ ] L'icône de réveil apparaît dans la barre d'état d'Android.
 - [ ] Fermer l'application (la retirer des applications récentes).
