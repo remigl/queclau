@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reveil/models/alarm.dart';
+import 'package:reveil/services/llm_alarm_parser.dart';
 import 'package:reveil/services/nlp_service.dart';
 
 void main() {
@@ -58,6 +59,34 @@ void main() {
     expect(await nlp.parse('25h00'), isNull);
     expect(await nlp.parse('8h75'), isNull);
     expect(await nlp.parse('après-demain 8h'), isNull);
+  });
+
+  test('réponses du modèle local', () {
+    expect(
+      LlmAlarmParser.decode('demain 07:15'),
+      const ParsedAlarm(
+        hour: 7,
+        minute: 15,
+        day: AlarmDay.tomorrow,
+        fromModel: true,
+      ),
+    );
+    expect(
+      LlmAlarmParser.decode('aujourdhui 20:50\n'),
+      const ParsedAlarm(
+        hour: 20,
+        minute: 50,
+        day: AlarmDay.today,
+        fromModel: true,
+      ),
+    );
+    expect(
+      LlmAlarmParser.decode('inconnu 06:00'),
+      const ParsedAlarm(hour: 6, minute: 0, fromModel: true),
+    );
+    expect(LlmAlarmParser.decode('aucune'), isNull);
+    expect(LlmAlarmParser.decode('demain 25:00'), isNull);
+    expect(LlmAlarmParser.decode('n’importe quoi'), isNull);
   });
 
   test('règle de date', () {

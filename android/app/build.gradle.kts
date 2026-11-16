@@ -24,6 +24,11 @@ android {
         versionName = flutter.versionName
     }
 
+    // Le modèle GGUF (assets/models/) est stocké tel quel dans l'APK.
+    androidResources {
+        noCompress.add("gguf")
+    }
+
     buildTypes {
         release {
             // MVP : signé avec la clé de debug pour que

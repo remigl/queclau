@@ -23,6 +23,8 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
             .setMethodCallHandler(::onMethodCall)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MODEL_CHANNEL)
+            .setMethodCallHandler(::onModelCall)
     }
 
     override fun onResume() {
@@ -49,6 +51,24 @@ class MainActivity : FlutterActivity() {
             "requestNotificationPermission" -> requestNotificationPermission(result)
             else -> result.notImplemented()
         }
+    }
+
+    /** Canal « reveil/model » : prépare le fichier du modèle de langage. */
+    private fun onModelCall(call: MethodCall, result: MethodChannel.Result) {
+        if (call.method != "prepare") {
+            result.notImplemented()
+            return
+        }
+        val context = applicationContext
+        // La première copie du modèle est longue : hors du thread principal.
+        Thread {
+            val path = try {
+                ModelFiles.prepare(context)
+            } catch (_: Exception) {
+                null
+            }
+            runOnUiThread { result.success(path) }
+        }.start()
     }
 
     private fun schedule(call: MethodCall, result: MethodChannel.Result) {
@@ -136,6 +156,7 @@ class MainActivity : FlutterActivity() {
 
     private companion object {
         const val CHANNEL = "reveil/alarm"
+        const val MODEL_CHANNEL = "reveil/model"
         const val REQUEST_NOTIFICATIONS = 4711
     }
 }

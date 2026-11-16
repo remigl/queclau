@@ -1,0 +1,4 @@
+Le modèle de langage local (fichier .gguf) se place dans ce dossier.
+Il n'est pas versionné dans git : lancer tool/fetch_model.sh pour le télécharger.
+Sans fichier .gguf ici, l'application se compile et fonctionne avec le seul
+parser déterministe.

@@ -21,3 +21,7 @@
 **/GeneratedPluginRegistrant.java
 *.jks
 *.keystore
+
+# Modèle de langage local (téléchargé par tool/fetch_model.sh)
+/android/app/src/main/assets/models/*.gguf
+/android/app/src/main/assets/models/*.part

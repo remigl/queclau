@@ -4,21 +4,24 @@ import '../models/alarm.dart';
 
 /// Contrat commun à tout ce qui sait transformer un texte en réveil.
 ///
-/// Le retour est un [FutureOr] pour qu'un futur modèle local asynchrone
-/// (par exemple un petit GGUF via llama.cpp) puisse implémenter la même
-/// interface sans rien changer au reste de l'application.
+/// Le retour est un [FutureOr] : le parser déterministe répond tout de suite,
+/// le modèle local (`LlmAlarmParser`, un petit GGUF via llama.cpp) répond de
+/// façon asynchrone, derrière la même interface.
 abstract class AlarmParser {
   FutureOr<ParsedAlarm?> parse(String text);
+
+  /// Libère les ressources lourdes éventuelles (modèle en mémoire).
+  Future<void> release() async {}
 }
 
 /// Point d'entrée de la compréhension : interroge les parsers dans l'ordre et
 /// renvoie le premier résultat.
 ///
-/// Pour le MVP, seul le parser déterministe est branché. Pour ajouter un
-/// modèle local en secours :
+/// Par défaut, seul le parser déterministe est branché. L'application y
+/// ajoute le modèle local en secours :
 ///
 /// ```dart
-/// NlpService(parsers: [RuleBasedAlarmParser(), MonParserLlmLocal()]);
+/// NlpService(parsers: [RuleBasedAlarmParser(), LlmAlarmParser()]);
 /// ```
 class NlpService {
   NlpService({List<AlarmParser>? parsers})
@@ -33,6 +36,12 @@ class NlpService {
     }
     return null;
   }
+
+  Future<void> release() async {
+    for (final parser in _parsers) {
+      await parser.release();
+    }
+  }
 }
 
 /// Parser déterministe, 100 % local, pour le français courant.
@@ -41,7 +50,7 @@ class NlpService {
 /// « huit heures trente », « midi et demi », « 9 heures moins le quart »,
 /// « 7 heures du soir », avec ou sans « demain » / « aujourd'hui », y compris
 /// au milieu d'une phrase (« mets mon réveil à 6h45 »).
-class RuleBasedAlarmParser implements AlarmParser {
+class RuleBasedAlarmParser extends AlarmParser {
   // « 8h30 », « 8 h », « 8 heures 30 »
   static final _hourMarker =
       RegExp(r'\b(\d{1,2})\s*(?:heures?|h)(?![a-z])\s*(\d{1,2})?(?!\d)');

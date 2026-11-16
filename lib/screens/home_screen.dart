@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../models/alarm.dart';
 import '../services/alarm_service.dart';
+import '../services/llm_alarm_parser.dart';
 import '../services/nlp_service.dart';
 import '../services/speech_service.dart';
 
@@ -27,7 +28,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       'Choisissez l’heure manuellement.';
 
   final _speech = SpeechService();
-  final _nlp = NlpService();
+  // Le parser déterministe d'abord ; le modèle local seulement s'il échoue.
+  final _nlp = NlpService(parsers: [RuleBasedAlarmParser(), LlmAlarmParser()]);
   final _alarms = AlarmService();
 
   // Brouillon en cours.
@@ -40,6 +42,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   bool _listening = false;
   bool _handled = false; // le texte de l'écoute en cours a déjà été traité
+  bool _thinking = false; // le modèle local réfléchit
   bool _speechUnavailable = false;
   bool _exactAlarmDenied = false;
   String _heard = '';
@@ -60,6 +63,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _speech.onDone = null;
     _speech.stop();
+    _nlp.release();
     super.dispose();
   }
 
@@ -67,6 +71,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Au retour dans l'application, le réveil a pu sonner entre-temps.
     if (state == AppLifecycleState.resumed) _refreshScheduled();
+    // En arrière-plan, inutile de garder le modèle en mémoire.
+    if (state == AppLifecycleState.paused) _nlp.release();
   }
 
   Future<void> _refreshScheduled() async {
@@ -83,6 +89,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // --- Voix ----------------------------------------------------------------
 
   Future<void> _toggleListening() async {
+    if (_thinking) return;
     if (_listening) {
       await _speech.stop();
       return;
@@ -139,12 +146,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _understand(String text) async {
     if (_handled) return;
     _handled = true;
-    final parsed = await _nlp.parse(text);
+    setState(() => _thinking = true);
+    ParsedAlarm? parsed;
+    try {
+      parsed = await _nlp.parse(text);
+    } catch (_) {
+      parsed = null;
+    }
     if (!mounted) return;
+    setState(() => _thinking = false);
     if (parsed == null) {
       setState(() => _message = _notUnderstood);
     } else {
-      _applyTime(parsed.hour, parsed.minute, parsed.day);
+      _applyTime(
+        parsed.hour,
+        parsed.minute,
+        parsed.day,
+        fromModel: parsed.fromModel,
+      );
     }
   }
 
@@ -154,17 +173,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   ///  * heure déjà passée aujourd'hui → demain ;
   ///  * jour dit explicitement → ce jour ;
   ///  * sinon → aucun jour présélectionné, l'utilisateur choisit.
-  void _applyTime(int hour, int minute, AlarmDay? requestedDay) {
+  void _applyTime(
+    int hour,
+    int minute,
+    AlarmDay? requestedDay, {
+    bool fromModel = false,
+  }) {
     final past = isPastToday(hour, minute, DateTime.now());
+    final notes = [
+      if (fromModel)
+        'Heure déduite par le modèle local : vérifiez-la avant de programmer.',
+      if (past && requestedDay == AlarmDay.today)
+        '${formatTime(hour, minute)} est déjà passée aujourd’hui : '
+            'réveil proposé pour demain.',
+    ];
     setState(() {
       _hour = hour;
       _minute = minute;
       _day = past ? AlarmDay.tomorrow : requestedDay;
       _exactAlarmDenied = false;
-      _message = (past && requestedDay == AlarmDay.today)
-          ? '${formatTime(hour, minute)} est déjà passée aujourd’hui : '
-              'réveil proposé pour demain.'
-          : null;
+      _message = notes.isEmpty ? null : notes.join('\n');
     });
   }
 
@@ -298,10 +326,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                   const SizedBox(height: 8),
                   _buildStatus(theme, now),
-                  if (_listening || _heard.isNotEmpty) ...[
+                  if (_listening || _thinking || _heard.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     Text(
-                      _heard.isEmpty ? 'J’écoute…' : '« $_heard »',
+                      _thinking
+                          ? '« $_heard »\nAnalyse en cours…'
+                          : _heard.isEmpty
+                              ? 'J’écoute…'
+                              : '« $_heard »',
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodyMedium
                           ?.copyWith(color: colors.onSurfaceVariant),
@@ -325,7 +357,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ],
                   const SizedBox(height: 28),
                   FilledButton.tonalIcon(
-                    onPressed: _toggleListening,
+                    onPressed: _thinking ? null : _toggleListening,
                     icon: Icon(_listening ? Icons.stop : Icons.mic),
                     label: Text(_listening ? 'Arrêter l’écoute' : 'Dire l’heure'),
                     style: FilledButton.styleFrom(

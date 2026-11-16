@@ -6,21 +6,31 @@ enum AlarmDay { today, tomorrow }
 /// [day] vaut `null` quand l'utilisateur n'a donné qu'une heure : c'est alors
 /// l'écran qui décide (demain si l'heure est passée, sinon choix proposé).
 class ParsedAlarm {
-  const ParsedAlarm({required this.hour, required this.minute, this.day});
+  const ParsedAlarm({
+    required this.hour,
+    required this.minute,
+    this.day,
+    this.fromModel = false,
+  });
 
   final int hour;
   final int minute;
   final AlarmDay? day;
+
+  /// Vrai si l'heure a été déduite par le modèle de langage local (moins
+  /// fiable que le parser déterministe) : l'écran demande alors de vérifier.
+  final bool fromModel;
 
   @override
   bool operator ==(Object other) =>
       other is ParsedAlarm &&
       other.hour == hour &&
       other.minute == minute &&
-      other.day == day;
+      other.day == day &&
+      other.fromModel == fromModel;
 
   @override
-  int get hashCode => Object.hash(hour, minute, day);
+  int get hashCode => Object.hash(hour, minute, day, fromModel);
 
   @override
   String toString() => 'ParsedAlarm(${formatTime(hour, minute)}, $day)';
