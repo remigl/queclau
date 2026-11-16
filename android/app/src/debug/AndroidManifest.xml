@@ -1,0 +1,5 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Uniquement pour le développement (hot reload, débogage).
+         La version release n'a aucun accès réseau. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+</manifest>

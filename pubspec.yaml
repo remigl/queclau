@@ -1,0 +1,23 @@
+name: reveil
+description: "Réveil : un réveil Android minimaliste, réglable à la voix, 100 % local."
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # Fourni par le SDK Flutter : sélecteur d'heure et libellés en français.
+  flutter_localizations:
+    sdk: flutter
+  # Reconnaissance vocale Android (seule dépendance externe).
+  speech_to_text: ^7.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
