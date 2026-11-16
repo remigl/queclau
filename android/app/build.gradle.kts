@@ -1,8 +1,7 @@
 plugins {
-    id "com.android.application"
-    id "kotlin-android"
-    // Le plugin Flutter doit être appliqué après les plugins Android et Kotlin.
-    id "dev.flutter.flutter-gradle-plugin"
+    id("com.android.application")
+    // Le plugin Flutter doit être appliqué après le plugin Android.
+    id("dev.flutter.flutter-gradle-plugin")
 }
 
 android {
@@ -11,12 +10,8 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
-    }
-
-    kotlinOptions {
-        jvmTarget = "11"
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
     defaultConfig {
@@ -34,8 +29,14 @@ android {
             // MVP : signé avec la clé de debug pour que
             // `flutter build apk --release` fonctionne sans configuration.
             // À remplacer par une vraie clé avant toute publication.
-            signingConfig = signingConfigs.debug
+            signingConfig = signingConfigs.getByName("debug")
         }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
     }
 }
 

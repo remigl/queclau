@@ -4,7 +4,7 @@ publish_to: "none"
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.5.0
+  sdk: ^3.14.0
 
 dependencies:
   flutter:
@@ -12,8 +12,11 @@ dependencies:
   # Fourni par le SDK Flutter : sélecteur d'heure et libellés en français.
   flutter_localizations:
     sdk: flutter
-  # Reconnaissance vocale Android (seule dépendance externe).
-  speech_to_text: ^7.0.0
+  material_ui: ^1.1.0
+  # Reconnaissance vocale Android.
+  speech_to_text: ^7.5.0
+  # llama.cpp embarqué : petit modèle local de secours pour la compréhension.
+  llamadart: ^0.19.11
 
 dev_dependencies:
   flutter_test:
@@ -21,3 +24,9 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+# N'embarquer que le moteur llama.cpp (modèles GGUF).
+hooks:
+  user_defines:
+    llamadart:
+      llamadart_native_runtimes: [llama_cpp]

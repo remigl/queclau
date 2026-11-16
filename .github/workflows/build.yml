@@ -26,26 +26,31 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: 3.50.0
           cache: true
-
-      # Temporaire : copie du gabarit Android courant de Flutter.
-      - name: Gabarit
-        continue-on-error: true
-        shell: bash
-        run: |
-          flutter create --platforms=android --project-name reveil --org com.remigl /tmp/tpl > /dev/null
-          mkdir -p /tmp/logs/tpl && cd /tmp/tpl
-          cp --parents android/settings.gradle* android/build.gradle* android/gradle.properties \
-            android/gradle/wrapper/gradle-wrapper.properties android/app/build.gradle* \
-            android/app/src/main/AndroidManifest.xml android/app/src/main/res/values/styles.xml \
-            android/.gitignore pubspec.yaml lib/main.dart /tmp/logs/tpl/
-          find android -type f | sort > /tmp/logs/tpl/files.txt
 
       - name: Dépendances
         shell: bash
         run: |
           set -o pipefail
           { flutter --version && flutter pub get; } 2>&1 | tee -a ci.log
+
+      # Temporaire : relevé de l'API de llamadart.
+      - name: API llamadart
+        continue-on-error: true
+        shell: bash
+        run: |
+          P=$(ls -d ~/.pub-cache/hosted/pub.dev/llamadart-*/ | head -1)
+          mkdir -p /tmp/logs/api
+          cp "$P/README.md" "$P/pubspec.yaml" /tmp/logs/api/ || true
+          (cd "$P" && find . -maxdepth 3 -not -path './lib/src/*' | sort | head -300) > /tmp/logs/api/tree.txt
+          for c in GenerationParams ModelParams ModelSource LlamaModel LlamaEngine LlamaChatMessage LlamaChatRole ResponseFormat GpuBackend; do
+            for f in $(grep -rlE "^(abstract |final |sealed |base )*(class|enum) $c\b" "$P/lib" | head -3); do
+              cp "$f" "/tmp/logs/api/${c}__$(basename "$f")"
+            done
+          done
+          cp "$P/lib/llamadart.dart" /tmp/logs/api/ || true
+          for f in $(grep -rliE "structured|responseFormat|android" "$P/doc" "$P/docs" 2>/dev/null | head -8); do cp "$f" /tmp/logs/api/; done
 
       - name: Analyse
         shell: bash

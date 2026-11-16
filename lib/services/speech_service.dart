@@ -55,9 +55,11 @@ class SpeechService {
     required void Function(String text, bool isFinal) onResult,
   }) {
     return _stt.listen(
-      localeId: _localeId,
-      listenFor: const Duration(seconds: 10),
-      pauseFor: const Duration(seconds: 3),
+      listenOptions: SpeechListenOptions(
+        localeId: _localeId,
+        listenFor: const Duration(seconds: 10),
+        pauseFor: const Duration(seconds: 3),
+      ),
       onResult: (SpeechRecognitionResult result) =>
           onResult(result.recognizedWords, result.finalResult),
     );
