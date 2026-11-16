@@ -28,6 +28,19 @@ jobs:
           channel: stable
           cache: true
 
+      # Temporaire : copie du gabarit Android courant de Flutter.
+      - name: Gabarit
+        continue-on-error: true
+        shell: bash
+        run: |
+          flutter create --platforms=android --project-name reveil --org com.remigl /tmp/tpl > /dev/null
+          mkdir -p /tmp/logs/tpl && cd /tmp/tpl
+          cp --parents android/settings.gradle* android/build.gradle* android/gradle.properties \
+            android/gradle/wrapper/gradle-wrapper.properties android/app/build.gradle* \
+            android/app/src/main/AndroidManifest.xml android/app/src/main/res/values/styles.xml \
+            android/.gitignore pubspec.yaml lib/main.dart /tmp/logs/tpl/
+          find android -type f | sort > /tmp/logs/tpl/files.txt
+
       - name: Dépendances
         shell: bash
         run: |
