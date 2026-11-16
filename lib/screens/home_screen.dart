@@ -1,18 +1,17 @@
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../models/alarm.dart';
 import '../services/alarm_service.dart';
 import '../services/llm_alarm_parser.dart';
 import '../services/nlp_service.dart';
 import '../services/speech_service.dart';
+import '../widgets/orb.dart';
 
-/// L'unique écran de l'application.
+/// L'unique écran : une sphère qui écoute dès l'ouverture.
 ///
-/// Deux états simples :
-///  * un « brouillon » ([_hour], [_minute], [_day]) : l'heure dite ou choisie,
-///    pas encore programmée ;
-///  * le réveil réellement programmé côté Android ([_scheduled]).
+///  * heure comprise → l'alarme est réglée dans l'Horloge du téléphone ;
+///  * pas compris → la sphère tremble légèrement, puis réécoute.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -21,41 +20,36 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
-  static const _notUnderstood = 'Je n’ai pas compris l’heure.\n\n'
-      'Essayez :\n« 8h30 »\n« demain 7h45 »';
-  static const _speechUnavailableText =
-      'La reconnaissance vocale n’est pas disponible.\n'
-      'Choisissez l’heure manuellement.';
+  /// Nombre d'essais ratés d'affilée avant de cesser de réécouter seul.
+  static const _maxRetries = 3;
 
   final _speech = SpeechService();
-  // Le parser déterministe d'abord ; le modèle local seulement s'il échoue.
-  final _nlp = NlpService(parsers: [RuleBasedAlarmParser(), LlmAlarmParser()]);
   final _alarms = AlarmService();
+  final _llm = LlmAlarmParser();
 
-  // Brouillon en cours.
-  int? _hour;
-  int? _minute;
-  AlarmDay? _day;
+  // Le parser déterministe d'abord ; le modèle local seulement s'il échoue.
+  late final _nlp = NlpService(parsers: [RuleBasedAlarmParser(), _llm]);
 
-  // Réveil programmé côté Android.
-  Alarm? _scheduled;
+  final _level = ValueNotifier<double>(0);
 
-  bool _listening = false;
-  bool _handled = false; // le texte de l'écoute en cours a déjà été traité
-  bool _thinking = false; // le modèle local réfléchit
-  bool _speechUnavailable = false;
-  bool _exactAlarmDenied = false;
+  OrbState _state = OrbState.idle;
   String _heard = '';
-  String? _message;
-
-  bool get _hasDraft => _hour != null && _minute != null;
+  String? _caption;
+  bool _starting = false; // démarrage de l'écoute en cours
+  bool _handled = false; // le texte de l'écoute en cours a déjà été traité
+  bool _speechUnavailable = false;
+  bool _wasInBackground = false;
+  int _failures = 0;
+  DateTime? _successAt;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _speech.onDone = _onListeningDone;
-    _refreshScheduled();
+    // Prépare le fichier du modèle en tâche de fond (long la première fois).
+    _llm.prepareFile();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _listen());
   }
 
   @override
@@ -64,398 +58,272 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _speech.onDone = null;
     _speech.stop();
     _nlp.release();
+    _level.dispose();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Au retour dans l'application, le réveil a pu sonner entre-temps.
-    if (state == AppLifecycleState.resumed) _refreshScheduled();
-    // En arrière-plan, inutile de garder le modèle en mémoire.
-    if (state == AppLifecycleState.paused) _nlp.release();
-  }
+    if (state == AppLifecycleState.paused) {
+      _speech.stop();
+      // En arrière-plan, inutile de garder le modèle en mémoire.
+      _nlp.release();
 
-  Future<void> _refreshScheduled() async {
-    try {
-      final alarm = await _alarms.current();
-      if (mounted) setState(() => _scheduled = alarm);
-    } on PlatformException {
-      // Sans réponse du côté natif, on affiche simplement « aucun réveil ».
-    } on MissingPluginException {
-      // Idem (tests, plateforme non Android).
+      // Régler l'alarme passe brièvement par l'Horloge : ce n'est pas un
+      // vrai départ de l'utilisateur, on garde la confirmation affichée.
+      final at = _successAt;
+      final justSet = at != null &&
+          DateTime.now().difference(at) < const Duration(seconds: 4);
+      if (!justSet) {
+        _wasInBackground = true;
+        setState(() {
+          _state = OrbState.idle;
+          _caption = null;
+        });
+      }
+    } else if (state == AppLifecycleState.resumed && _wasInBackground) {
+      // Retour dans l'application : on réécoute, comme à l'ouverture.
+      _wasInBackground = false;
+      _failures = 0;
+      if (_state == OrbState.idle) _listen();
     }
   }
 
-  // --- Voix ----------------------------------------------------------------
+  // --- Écoute ---------------------------------------------------------------
 
-  Future<void> _toggleListening() async {
-    if (_thinking) return;
-    if (_listening) {
-      await _speech.stop();
+  Future<void> _listen() async {
+    if (_starting ||
+        _state == OrbState.listening ||
+        _state == OrbState.thinking) {
       return;
     }
-
-    final available = await _speech.init();
-    if (!mounted) return;
-    if (!available) {
+    _starting = true;
+    try {
+      final available = await _speech.init();
+      if (!mounted) return;
+      if (!available) {
+        _setSpeechUnavailable();
+        return;
+      }
+      _level.value = 0;
       setState(() {
-        _speechUnavailable = true;
-        _message = _speechUnavailableText;
+        _state = OrbState.listening;
+        _handled = false;
+        _heard = '';
+        _caption = null;
       });
-      return;
-    }
-
-    setState(() {
-      _listening = true;
-      _handled = false;
-      _heard = '';
-      _message = null;
-    });
-
-    try {
       await _speech.listen(
         onResult: (text, isFinal) {
           if (!mounted) return;
-          setState(() => _heard = text);
+          _heard = text;
           if (isFinal) _understand(text);
         },
+        onLevel: (level) => _level.value = level,
       );
     } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _listening = false;
-        _speechUnavailable = true;
-        _message = _speechUnavailableText;
-      });
+      if (mounted) _setSpeechUnavailable();
+    } finally {
+      _starting = false;
     }
   }
 
+  void _setSpeechUnavailable() {
+    setState(() {
+      _speechUnavailable = true;
+      _state = OrbState.idle;
+      _caption = 'Micro indisponible.\nTouchez la sphère pour choisir l’heure.';
+    });
+  }
+
   Future<void> _onListeningDone() async {
-    if (!mounted) return;
-    setState(() => _listening = false);
     // Le résultat final peut arriver juste après la fin de l'écoute.
     await Future<void>.delayed(const Duration(milliseconds: 400));
-    if (!mounted || _handled || _listening) return;
+    if (!mounted || _handled || _state != OrbState.listening) return;
     if (_heard.trim().isEmpty) {
-      setState(() => _message = _notUnderstood);
+      // Rien entendu : on ne réécoute pas en boucle dans le silence.
+      _fail(retry: false);
     } else {
       await _understand(_heard);
     }
   }
 
+  // --- Compréhension --------------------------------------------------------
+
   Future<void> _understand(String text) async {
     if (_handled) return;
     _handled = true;
-    setState(() => _thinking = true);
+    setState(() => _state = OrbState.thinking);
+
     ParsedAlarm? parsed;
     try {
       parsed = await _nlp.parse(text);
     } catch (_) {
       parsed = null;
     }
-    if (!mounted) return;
-    setState(() => _thinking = false);
+    if (!mounted || _state != OrbState.thinking) return;
+
     if (parsed == null) {
-      setState(() => _message = _notUnderstood);
+      _fail(retry: true);
     } else {
-      _applyTime(
-        parsed.hour,
-        parsed.minute,
-        parsed.day,
-        fromModel: parsed.fromModel,
-      );
+      await _setAlarm(parsed.hour, parsed.minute, parsed.day);
     }
   }
 
-  // --- Choix de l'heure et du jour ----------------------------------------
+  // --- Réglage de l'alarme --------------------------------------------------
 
-  /// Applique la règle de date :
-  ///  * heure déjà passée aujourd'hui → demain ;
-  ///  * jour dit explicitement → ce jour ;
-  ///  * sinon → aucun jour présélectionné, l'utilisateur choisit.
-  void _applyTime(
-    int hour,
-    int minute,
-    AlarmDay? requestedDay, {
-    bool fromModel = false,
-  }) {
+  /// L'Horloge du téléphone règle toujours la *prochaine* occurrence de
+  /// l'heure donnée. On refuse donc les demandes qu'elle ne peut pas honorer
+  /// plutôt que de régler l'alarme sur le mauvais jour.
+  Future<void> _setAlarm(int hour, int minute, AlarmDay? day) async {
+    final time = formatTime(hour, minute);
     final past = isPastToday(hour, minute, DateTime.now());
-    final notes = [
-      if (fromModel)
-        'Heure déduite par le modèle local : vérifiez-la avant de programmer.',
-      if (past && requestedDay == AlarmDay.today)
-        '${formatTime(hour, minute)} est déjà passée aujourd’hui : '
-            'réveil proposé pour demain.',
-    ];
+
+    if (day == AlarmDay.tomorrow && !past) {
+      _fail(
+        retry: false,
+        caption: 'Impossible pour demain :\n'
+            'l’Horloge sonnerait dès aujourd’hui à $time.',
+      );
+      return;
+    }
+    if (day == AlarmDay.today && past) {
+      _fail(retry: false, caption: '$time est déjà passée aujourd’hui.');
+      return;
+    }
+
+    try {
+      await _alarms.setAlarm(hour, minute);
+    } on PlatformException {
+      if (mounted) {
+        _fail(
+          retry: false,
+          caption: 'L’Horloge du téléphone n’a pas accepté l’alarme.',
+        );
+      }
+      return;
+    } on MissingPluginException {
+      if (mounted) _fail(retry: false);
+      return;
+    }
+    if (!mounted) return;
+
+    _failures = 0;
+    _successAt = DateTime.now();
+    HapticFeedback.mediumImpact();
     setState(() {
-      _hour = hour;
-      _minute = minute;
-      _day = past ? AlarmDay.tomorrow : requestedDay;
-      _exactAlarmDenied = false;
-      _message = notes.isEmpty ? null : notes.join('\n');
+      _state = OrbState.success;
+      _caption = '${past ? 'Demain' : 'Aujourd’hui'} à $time';
     });
   }
 
+  /// « Pas compris » : la sphère tremble, puis réécoute (ou se met au repos).
+  void _fail({required bool retry, String? caption}) {
+    _failures++;
+    HapticFeedback.lightImpact();
+    setState(() {
+      _state = OrbState.error;
+      _caption = caption;
+    });
+    Future<void>.delayed(const Duration(milliseconds: 900), () {
+      if (!mounted || _state != OrbState.error) return;
+      setState(() => _state = OrbState.idle);
+      if (retry && _failures < _maxRetries) _listen();
+    });
+  }
+
+  // --- Toucher la sphère ----------------------------------------------------
+
+  Future<void> _onTap() async {
+    if (_state == OrbState.thinking) return;
+    if (_state == OrbState.listening) {
+      await _speech.stop();
+      return;
+    }
+    _failures = 0;
+    if (_speechUnavailable) {
+      await _pickTime();
+    } else {
+      await _listen();
+    }
+  }
+
+  /// Secours quand la reconnaissance vocale n'est pas disponible.
   Future<void> _pickTime() async {
     final picked = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay(
-        hour: _hour ?? _scheduled?.hour ?? 8,
-        minute: _minute ?? _scheduled?.minute ?? 0,
-      ),
-      helpText: 'Heure du réveil',
+      initialTime: const TimeOfDay(hour: 8, minute: 0),
+      helpText: 'Heure de l’alarme',
       builder: (context, child) => MediaQuery(
         data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
         child: child!,
       ),
     );
     if (picked == null || !mounted) return;
-    _applyTime(picked.hour, picked.minute, _day);
+    await _setAlarm(picked.hour, picked.minute, null);
   }
 
-  // --- Programmation -------------------------------------------------------
+  // --- Interface ------------------------------------------------------------
 
-  Future<void> _schedule() async {
-    final day = _day;
-    if (!_hasDraft || day == null) return;
-    final alarm = Alarm.forDay(day, _hour!, _minute!, DateTime.now());
-
-    try {
-      // Android 13+ : sans cette autorisation, le réveil sonne quand même
-      // mais l'écran et la notification « Arrêter » ne s'affichent pas.
-      await _alarms.requestNotificationPermission();
-      await _alarms.schedule(alarm);
-      if (!mounted) return;
-      setState(() {
-        _scheduled = alarm;
-        _hour = null;
-        _minute = null;
-        _day = null;
-        _heard = '';
-        _message = null;
-        _exactAlarmDenied = false;
-      });
-    } on PlatformException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        switch (e.code) {
-          case AlarmService.errorPast:
-            _day = AlarmDay.tomorrow;
-            _message = 'Cette heure est déjà passée : choisissez demain.';
-          case AlarmService.errorExactAlarmDenied:
-            _exactAlarmDenied = true;
-            _message = 'Android n’autorise pas cette application à '
-                'programmer des alarmes exactes.';
-          default:
-            _message = 'Impossible de programmer le réveil.';
-        }
-      });
-    } on MissingPluginException {
-      if (!mounted) return;
-      setState(() => _message = 'Impossible de programmer le réveil.');
-    }
-  }
-
-  Future<void> _cancel() async {
-    try {
-      await _alarms.cancel();
-    } on PlatformException {
-      // Rien à faire : l'état est relu juste après.
-    }
-    await _refreshScheduled();
-  }
-
-  // --- Interface -----------------------------------------------------------
+  String get _semantics => switch (_state) {
+        OrbState.listening => 'À l’écoute. Dites l’heure de l’alarme.',
+        OrbState.thinking => 'Analyse en cours.',
+        OrbState.success => 'Alarme réglée. ${_caption ?? ''}',
+        OrbState.error => 'Je n’ai pas compris l’heure.',
+        OrbState.idle => 'Toucher pour dire l’heure de l’alarme.',
+      };
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    final now = DateTime.now();
+    final diameter =
+        (MediaQuery.sizeOf(context).shortestSide * 0.52).clamp(140.0, 280.0);
 
-    final String timeText;
-    if (_hasDraft) {
-      timeText = formatTime(_hour!, _minute!);
-    } else if (_scheduled != null) {
-      timeText = _scheduled!.timeLabel;
-    } else {
-      timeText = '--:--';
-    }
-
-    final todayPossible = _hasDraft && !isPastToday(_hour!, _minute!, now);
-
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'Réveil',
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.titleLarge
-                        ?.copyWith(color: colors.onSurfaceVariant),
-                  ),
-                  const SizedBox(height: 24),
-                  Center(
-                    child: InkWell(
-                      onTap: _pickTime,
-                      borderRadius: BorderRadius.circular(24),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 4,
-                        ),
-                        child: Text(
-                          timeText,
-                          semanticsLabel: 'Heure du réveil : $timeText. '
-                              'Toucher pour la modifier.',
-                          style: theme.textTheme.displayLarge?.copyWith(
-                            fontSize: 88,
-                            fontWeight: FontWeight.w300,
-                            fontFeatures: const [FontFeature.tabularFigures()],
-                          ),
-                        ),
-                      ),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: SafeArea(
+          child: Stack(
+            children: [
+              Center(
+                child: Semantics(
+                  button: true,
+                  liveRegion: true,
+                  label: _semantics,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: _onTap,
+                    child: Orb(
+                      state: _state,
+                      level: _level,
+                      diameter: diameter,
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  _buildStatus(theme, now),
-                  if (_listening || _thinking || _heard.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      _thinking
-                          ? '« $_heard »\nAnalyse en cours…'
-                          : _heard.isEmpty
-                              ? 'J’écoute…'
-                              : '« $_heard »',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyMedium
-                          ?.copyWith(color: colors.onSurfaceVariant),
-                    ),
-                  ],
-                  if (_message != null) ...[
-                    const SizedBox(height: 16),
-                    Text(
-                      _message!,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyLarge
-                          ?.copyWith(color: colors.error),
-                    ),
-                  ],
-                  if (_exactAlarmDenied) ...[
-                    const SizedBox(height: 8),
-                    OutlinedButton(
-                      onPressed: _alarms.openExactAlarmSettings,
-                      child: const Text('Autoriser les alarmes'),
-                    ),
-                  ],
-                  const SizedBox(height: 28),
-                  FilledButton.tonalIcon(
-                    onPressed: _thinking ? null : _toggleListening,
-                    icon: Icon(_listening ? Icons.stop : Icons.mic),
-                    label: Text(_listening ? 'Arrêter l’écoute' : 'Dire l’heure'),
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(56),
-                    ),
-                  ),
-                  if (_speechUnavailable || !_hasDraft) ...[
-                    const SizedBox(height: 4),
-                    TextButton(
-                      onPressed: _pickTime,
-                      child: const Text('Choisir l’heure manuellement'),
-                    ),
-                  ],
-                  if (_hasDraft) ...[
-                    const SizedBox(height: 20),
-                    SegmentedButton<AlarmDay>(
-                      emptySelectionAllowed: true,
-                      showSelectedIcon: false,
-                      segments: [
-                        ButtonSegment(
-                          value: AlarmDay.today,
-                          label: const Text('Aujourd’hui'),
-                          enabled: todayPossible,
-                        ),
-                        const ButtonSegment(
-                          value: AlarmDay.tomorrow,
-                          label: Text('Demain'),
-                        ),
-                      ],
-                      selected: {if (_day != null) _day!},
-                      onSelectionChanged: (selection) => setState(() {
-                        if (selection.isNotEmpty) _day = selection.first;
-                      }),
-                    ),
-                    const SizedBox(height: 20),
-                    FilledButton(
-                      onPressed: _day == null ? null : _schedule,
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size.fromHeight(56),
-                      ),
-                      child: const Text('Programmer le réveil'),
-                    ),
-                  ] else if (_scheduled != null) ...[
-                    const SizedBox(height: 8),
-                    TextButton(
-                      onPressed: _cancel,
-                      child: const Text('Annuler le réveil'),
-                    ),
-                  ],
-                ],
+                ),
               ),
-            ),
+              Align(
+                alignment: const Alignment(0, 0.72),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 250),
+                    child: Text(
+                      _caption ?? '',
+                      key: ValueKey(_caption),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.85),
+                        fontSize: _state == OrbState.success ? 26 : 16,
+                        fontWeight: FontWeight.w300,
+                        height: 1.35,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildStatus(ThemeData theme, DateTime now) {
-    final colors = theme.colorScheme;
-
-    if (_hasDraft) {
-      final text = switch (_day) {
-        AlarmDay.today => 'Réveil aujourd’hui',
-        AlarmDay.tomorrow => 'Réveil demain',
-        null => 'Aujourd’hui ou demain ?',
-      };
-      return Text(
-        text,
-        textAlign: TextAlign.center,
-        style: theme.textTheme.titleMedium,
-      );
-    }
-
-    final scheduled = _scheduled;
-    if (scheduled != null) {
-      return Column(
-        children: [
-          Text(
-            '✓ Réveil programmé',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.titleMedium?.copyWith(color: colors.primary),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '${scheduled.dayLabel(now)} à ${scheduled.timeLabel}',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyLarge,
-          ),
-        ],
-      );
-    }
-
-    return Text(
-      'Aucun réveil programmé',
-      textAlign: TextAlign.center,
-      style: theme.textTheme.titleMedium
-          ?.copyWith(color: colors.onSurfaceVariant),
     );
   }
 }

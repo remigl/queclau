@@ -51,10 +51,16 @@ class SpeechService {
   }
 
   /// Démarre l'écoute. [onResult] reçoit le texte reconnu au fil de l'eau.
+  /// [onLevel] reçoit le volume de la voix, ramené entre 0 et 1.
   Future<void> listen({
     required void Function(String text, bool isFinal) onResult,
+    void Function(double level)? onLevel,
   }) {
     return _stt.listen(
+      // Android renvoie un niveau d'environ -2 dB (silence) à 10 dB.
+      onSoundLevelChange: onLevel == null
+          ? null
+          : (double db) => onLevel(((db + 2) / 12).clamp(0.0, 1.0)),
       listenOptions: SpeechListenOptions(
         localeId: _localeId,
         listenFor: const Duration(seconds: 10),

@@ -89,15 +89,12 @@ void main() {
     expect(LlmAlarmParser.decode('n’importe quoi'), isNull);
   });
 
-  test('règle de date', () {
+  test('heure déjà passée aujourd’hui', () {
     final evening = DateTime(2026, 11, 16, 18, 0);
     final morning = DateTime(2026, 11, 16, 7, 0);
     expect(isPastToday(8, 30, evening), isTrue);
     expect(isPastToday(8, 30, morning), isFalse);
-
-    final lastDay = DateTime(2026, 12, 31, 23, 0);
-    final alarm = Alarm.forDay(AlarmDay.tomorrow, 8, 30, lastDay);
-    expect([alarm.year, alarm.month, alarm.day], [2027, 1, 1]);
-    expect(alarm.dayLabel(lastDay), 'Demain');
+    expect(isPastToday(7, 0, morning), isTrue);
+    expect(formatTime(8, 5), '08:05');
   });
 }

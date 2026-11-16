@@ -3,33 +3,17 @@
     <!-- Reconnaissance vocale. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
-    <!-- Alarmes exactes.
-         Android 12 / 12L : SCHEDULE_EXACT_ALARM (accordée par défaut, révocable
-         dans Réglages > Applis > Accès spécial > Alarmes et rappels).
-         Android 13+ : USE_EXACT_ALARM, réservée aux applications de réveil,
-         accordée à l'installation et non révocable. -->
-    <uses-permission
-        android:name="android.permission.SCHEDULE_EXACT_ALARM"
-        android:maxSdkVersion="32" />
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- Créer une alarme dans l'application Horloge du téléphone. -->
+    <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
 
-    <!-- Notification et écran de réveil par-dessus l'écran verrouillé. -->
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
-
-    <!-- Service au premier plan qui joue la sonnerie. -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.VIBRATE" />
-
-    <!-- Reprogrammation du réveil après un redémarrage du téléphone. -->
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-
-    <!-- Android 11+ : visibilité du service de reconnaissance vocale. -->
+    <!-- Android 11+ : visibilité du service de reconnaissance vocale et de
+         l'application Horloge. -->
     <queries>
         <intent>
             <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SET_ALARM" />
         </intent>
     </queries>
 
@@ -56,48 +40,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <!-- Écran affiché quand le réveil sonne (natif : aucun moteur Flutter
-             à démarrer, il s'affiche même application fermée). -->
-        <activity
-            android:name=".AlarmActivity"
-            android:directBootAware="true"
-            android:excludeFromRecents="true"
-            android:exported="false"
-            android:launchMode="singleTask"
-            android:screenOrientation="portrait"
-            android:showWhenLocked="true"
-            android:taskAffinity=""
-            android:theme="@android:style/Theme.Material.NoActionBar"
-            android:turnScreenOn="true" />
-
-        <!-- Reçoit le déclenchement programmé par AlarmManager. -->
-        <receiver
-            android:name=".AlarmReceiver"
-            android:directBootAware="true"
-            android:exported="false" />
-
-        <!-- Reprogramme le réveil après redémarrage, mise à jour de l'appli,
-             changement d'heure ou de fuseau horaire. -->
-        <receiver
-            android:name=".BootReceiver"
-            android:directBootAware="true"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
-                <action android:name="android.intent.action.TIME_SET" />
-                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
-            </intent-filter>
-        </receiver>
-
-        <!-- Joue la sonnerie tant que l'utilisateur ne l'arrête pas. -->
-        <service
-            android:name=".AlarmRingService"
-            android:directBootAware="true"
-            android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
 
         <meta-data
             android:name="flutterEmbedding"

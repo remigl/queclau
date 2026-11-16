@@ -1,8 +1,8 @@
 name: Build
 
-# Compile les APK à chaque push sur main.
+# Compile l'APK (avec le modèle de langage) à chaque push sur main.
 # Si la version de pubspec.yaml (ex. 1.0.0) n'a pas encore de release GitHub,
-# la release « v1.0.0 » est créée avec les APK.
+# la release « v1.0.0 » est créée avec l'APK.
 on:
   push:
     branches: [main]
@@ -47,24 +47,14 @@ jobs:
           set -o pipefail
           flutter test 2>&1 | tee -a ci.log
 
-      # Variante légère : parser déterministe seul.
-      - name: Build APK sans modèle
-        shell: bash
-        run: |
-          set -o pipefail
-          flutter build apk --release --target-platform android-arm64 2>&1 | tee -a ci.log
-          cp build/app/outputs/flutter-apk/app-release.apk reveil-sans-modele.apk
-
-      # Variante complète : modèle de langage local embarqué.
-      - name: Build APK avec modèle
+      - name: Build APK
         shell: bash
         run: |
           set -o pipefail
           tool/fetch_model.sh 2>&1 | tee -a ci.log
           flutter build apk --release --target-platform android-arm64 2>&1 | tee -a ci.log
           cp build/app/outputs/flutter-apk/app-release.apk reveil.apk
-          ls -la *.apk | tee -a ci.log
-          unzip -l reveil.apk | grep -E "\.gguf|\.so$" | tee -a ci.log
+          ls -la reveil.apk | tee -a ci.log
 
       # Publie une release quand la version de pubspec.yaml n'en a pas encore.
       - name: Release
@@ -79,11 +69,25 @@ jobs:
             echo "La release $tag existe déjà."
             exit 0
           fi
-          full="reveil-${tag}.apk"
-          light="reveil-${tag}-sans-modele.apk"
-          mv reveil.apk "$full"
-          mv reveil-sans-modele.apk "$light"
-          gh release create "$tag" "$full" "$light" \
+          apk="reveil-${tag}.apk"
+          mv reveil.apk "$apk"
+          gh release create "$tag" "$apk" \
             --target "$GITHUB_SHA" \
             --title "Réveil ${tag}" \
             --notes-file RELEASE_NOTES.md
+
+      # En cas d'échec, le journal du build est poussé sur la branche ci-logs.
+      - name: Journal d'échec
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/logs
+          tail -n 600 ci.log > /tmp/logs/ci.log 2>/dev/null || true
+          echo "failure ${GITHUB_SHA} run ${GITHUB_RUN_ID}" > /tmp/logs/status.txt
+          cd /tmp/logs
+          git init -q -b ci-logs
+          git add .
+          git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -qm "Journal ${GITHUB_SHA}"
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}" ci-logs

@@ -10,9 +10,8 @@ import 'nlp_service.dart';
 /// Il n'est interrogé que lorsque le parser déterministe n'a rien compris.
 /// Sa réponse est contrainte par une grammaire : elle a forcément la forme
 /// « demain 07:15 », « aujourdhui 20:50 », « inconnu 06:00 » ou « aucune ».
-/// Un petit modèle peut se tromper : l'heure trouvée est signalée comme
-/// « à vérifier » ([ParsedAlarm.fromModel]) et n'est jamais programmée sans
-/// validation de l'utilisateur.
+/// Un petit modèle peut se tromper : le résultat est marqué
+/// [ParsedAlarm.fromModel].
 ///
 /// Si l'APK a été compilé sans modèle, ce parser ne renvoie simplement rien.
 class LlmAlarmParser extends AlarmParser {
@@ -44,15 +43,28 @@ minute ::= [0-5] [0-9]
 
   static final _reply = RegExp(r'^(aujourdhui|demain|inconnu) (\d{2}):(\d{2})$');
 
+  Future<String?>? _file;
   Future<LlamaEngine?>? _loading;
 
-  /// Copie le modèle hors de l'APK au premier appel (llama.cpp a besoin d'un
-  /// vrai fichier), puis le charge en mémoire. `null` si indisponible.
+  /// Copie le modèle hors de l'APK s'il ne l'est pas encore (llama.cpp a
+  /// besoin d'un vrai fichier). Long la première fois ; à lancer tôt, en
+  /// tâche de fond. Renvoie `null` si l'APK ne contient pas de modèle.
+  Future<String?> prepareFile() => _file ??= _prepareFile();
+
+  Future<String?> _prepareFile() async {
+    try {
+      return await _channel.invokeMethod<String>('prepare');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Charge le modèle en mémoire. `null` s'il est indisponible.
   Future<LlamaEngine?> _load() => _loading ??= _doLoad();
 
   Future<LlamaEngine?> _doLoad() async {
     try {
-      final path = await _channel.invokeMethod<String>('prepare');
+      final path = await prepareFile();
       if (path == null) return null;
       return await LlamaEngine.load(
         LlamaModel(ModelSource.path(path)),
