@@ -9,9 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  # Fourni par le SDK Flutter : sélecteur d'heure et libellés en français.
-  flutter_localizations:
-    sdk: flutter
+  # Composants Material 3 (et leurs libellés en français).
   material_ui: ^1.1.0
   # Reconnaissance vocale Android.
   speech_to_text: ^7.5.0

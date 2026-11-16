@@ -1,6 +1,4 @@
 import 'package:material_ui/material_ui.dart';
-import 'package:flutter_localizations/flutter_localizations.dart'
-    hide GlobalMaterialLocalizations;
 
 import 'screens/home_screen.dart';
 
